@@ -957,6 +957,51 @@ class API {
       return response.data
     })()
   }
+
+  async preflightCheck(service_name: string) {
+    return catchInternal(async () => {
+      const response = await this.client.get<{
+        portConflicts: Array<{ port: number; usedBy: string }>
+        resourceWarnings: string[]
+      }>('/system/services/preflight', { params: { service_name } })
+      return response.data
+    })()
+  }
+
+  async suggestCustomPort() {
+    return catchInternal(async () => {
+      const response = await this.client.get<{ port: number }>('/system/services/suggest-port')
+      return response.data
+    })()
+  }
+
+  async createCustomApp(payload: {
+    friendly_name: string
+    image: string
+    ports?: Array<{ container: number; host: number }>
+    volumes?: Array<{ host_path: string; container_path: string }>
+    env?: string[]
+    category?: string
+  }) {
+    return catchInternal(async () => {
+      const response = await this.client.post<{
+        success: boolean
+        message: string
+        service_name: string
+      }>('/system/services/custom', payload)
+      return response.data
+    })()
+  }
+
+  async deleteCustomApp(service_name: string) {
+    return catchInternal(async () => {
+      const response = await this.client.delete<{ success: boolean; message: string }>(
+        '/system/services/custom',
+        { data: { service_name } }
+      )
+      return response.data
+    })()
+  }
 }
 
 export default new API()

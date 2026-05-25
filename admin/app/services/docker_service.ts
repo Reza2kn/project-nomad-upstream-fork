@@ -1364,6 +1364,62 @@ export class DockerService {
   }
 
   /**
+   * Check whether any of the supplied host ports are already bound by a running or stopped
+   * Docker container. Uses the Docker API exclusively — probing ports via net.createServer()
+   * would only test the admin container's own network namespace (DooD pattern), not the host.
+   */
+  async checkPortConflicts(
+    ports: number[]
+  ): Promise<{ conflicts: { port: number; usedBy: string }[] }> {
+    if (!ports.length) return { conflicts: [] }
+
+    try {
+      const containers = await this.docker.listContainers({ all: true })
+      const bound = new Map<number, string>()
+
+      for (const c of containers) {
+        const name = (c.Names[0] || '').replace('/', '')
+        for (const p of c.Ports) {
+          if (p.PublicPort) bound.set(p.PublicPort, name || c.Id.slice(0, 12))
+        }
+      }
+
+      const conflicts = ports
+        .filter((p) => bound.has(p))
+        .map((p) => ({ port: p, usedBy: bound.get(p)! }))
+
+      return { conflicts }
+    } catch (error: any) {
+      logger.warn(`[DockerService] checkPortConflicts failed: ${error.message}`)
+      return { conflicts: [] }
+    }
+  }
+
+  /**
+   * Remove a custom-app container and optionally its image. Called before deleting the DB record.
+   */
+  async removeCustomAppContainer(
+    serviceName: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const containers = await this.docker.listContainers({ all: true })
+      const container = containers.find((c) => c.Names.includes(`/${serviceName}`))
+
+      if (!container) return { success: true, message: 'No container found — nothing to remove' }
+
+      const c = this.docker.getContainer(container.Id)
+      if (container.State === 'running') await c.stop()
+      await c.remove({ force: true })
+
+      this.invalidateServicesStatusCache()
+      return { success: true, message: `Container ${serviceName} removed` }
+    } catch (error: any) {
+      logger.error({ err: error }, `[DockerService] removeCustomAppContainer failed for ${serviceName}`)
+      return { success: false, message: error.message }
+    }
+  }
+
+  /**
    * Check if a Docker image exists locally.
    * @param imageName - The name and tag of the image (e.g., "nginx:latest")
    * @returns - True if the image exists locally, false otherwise

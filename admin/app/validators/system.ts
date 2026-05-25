@@ -31,3 +31,42 @@ export const updateServiceValidator = vine.compile(
     target_version: vine.string().trim(),
   })
 )
+
+export const preflightValidator = vine.compile(
+  vine.object({
+    service_name: vine.string().trim(),
+  })
+)
+
+export const customAppValidator = vine.compile(
+  vine.object({
+    friendly_name: vine.string().trim().minLength(1).maxLength(100),
+    image: vine.string().trim().minLength(1),
+    ports: vine
+      .array(
+        vine.object({
+          container: vine.number().min(1).max(65535),
+          host: vine.number().min(1024).max(65535),
+        })
+      )
+      .optional(),
+    volumes: vine
+      .array(
+        vine.object({
+          host_path: vine.string().trim(),
+          container_path: vine.string().trim(),
+        })
+      )
+      .optional(),
+    env: vine.array(vine.string().trim()).optional(),
+    category: vine
+      .enum(['productivity', 'media', 'security', 'networking', 'utility', 'ai', 'education', 'custom'])
+      .optional(),
+  })
+)
+
+export const deleteCustomAppValidator = vine.compile(
+  vine.object({
+    service_name: vine.string().trim(),
+  })
+)
